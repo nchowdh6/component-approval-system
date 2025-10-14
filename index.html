@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tier 2 Component Approval System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #005A9C; } /* Ford Blue */
+        input[type="text"], input[type="email"], input[type="password"], textarea {
+            width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px;
+        }
+        button {
+            background-color: #005A9C; /* Ford Blue */
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 5px; /* Added for better spacing */
+        }
+        button:hover { background-color: #004070; }
+        .auth-section, .app-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
+        .hidden { display: none; }
+        .product-item { background-color: #f9f9f9; border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 4px; }
+        .product-item h3 { margin-top: 0; color: #333; }
+        .product-item p { margin-bottom: 5px; font-size: 0.9em; }
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; color: white; }
+        .status-Submitted { background-color: #FFC107; } /* Yellow */
+        .status-Approved { background-color: #4CAF50; } /* Green */
+        .status-Rejected { background-color: #F44336; } /* Red */
+        .status-NeedsMoreInfo { background-color: #2196F3; } /* Blue */
+        .error-message { color: red; }
+        .success-message { color: green; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tier 2 Component Approval System</h1>
+
+        <div id="auth-section" class="auth-section">
+            <h2>Login / Register</h2>
+            <input type="email" id="email" placeholder="Email">
+            <input type="password" id="password" placeholder="Password">
+            <button id="loginBtn">Login</button>
+            <button id="registerBtn">Register</button>
+            <p id="auth-message" class="error-message"></p>
+        </div>
+
+        <div id="app-section" class="app-section hidden">
+            <p>Welcome, <strong id="user-email"></strong>! <button id="logoutBtn">Logout</button></p>
+
+            <h2>Submit New Product Request</h2>
+            <input type="text" id="productName" placeholder="Product Name">
+            <textarea id="productDescription" placeholder="Product Description" rows="3"></textarea>
+            <input type="text" id="supplierCompany" placeholder="Your Company Name">
+            <button id="submitProductBtn">Submit Product</button>
+            <p id="product-message" class="success-message"></p>
+
+            <h2>Product Requests</h2>
+            <div id="products-list">
+                <!-- Products will be loaded here -->
+                <p>Loading products...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs - ALWAYS include these at the end of <body> for performance -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        // Your Firebase configuration - REPLACE WITH YOUR ACTUAL CONFIG FROM STEP 2.3
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // UI Elements
+        const authSection = document.getElementById('auth-section');
+        const appSection = document.getElementById('app-section');
+        const userEmailSpan = document.getElementById('user-email');
+        const authMessage = document.getElementById('auth-message');
+        const productMessage = document.getElementById('product-message');
+        const productsList = document.getElementById('products-list');
+
+        // Helper to clear messages
+        function clearMessages() {
+            authMessage.textContent = '';
+            productMessage.textContent = '';
+        }
+
+        // Auth Logic
+        document.getElementById('registerBtn').addEventListener('click', async () => {
+            clearMessages();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            try {
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                // Store user details in Firestore, crucial for linking products to supplierId
+                await db.collection('users').doc(userCredential.user.uid).set({
+                    email: userCredential.user.email,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    // You could add a 'companyId' here if you manage companies separately,
+                    // but for this simple version, supplierId in products links directly to user.uid
+                });
+                authMessage.textContent = 'Registration successful! You are now logged in.';
+                authMessage.className = 'success-message';
+            } catch (error) {
+                authMessage.textContent = `Error: ${error.message}`;
+                authMessage.className = 'error-message';
+            }
+        });
+
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            clearMessages();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                authMessage.textContent = 'Login successful!';
+                authMessage.className = 'success-message';
+            } catch (error) {
+                authMessage.textContent = `Error: ${error.message}`;
+                authMessage.className = 'error-message';
+            }
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            clearMessages();
+            await auth.signOut();
+            authMessage.textContent = 'Logged out.';
+            authMessage.className = ''; // Remove error/success class
+            productMessage.textContent = '';
+        });
+
+        // Listen for auth state changes
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                authSection.classList.add('hidden');
+                appSection.classList.remove('hidden');
+                userEmailSpan.textContent = user.email;
+                loadProducts(); // Load products for the current user
+            } else {
+                authSection.classList.remove('hidden');
+                appSection.classList.add('hidden');
+                userEmailSpan.textContent = '';
+                productsList.innerHTML = '<p>Please log in to view products.</p>';
+                clearMessages();
+            }
+        });
+
+        // Product Submission Logic
+        document.getElementById('submitProductBtn').addEventListener('click', async () => {
+            clearMessages();
+            const productName = document.getElementById('productName').value;
+            const productDescription = document.getElementById('productDescription').value;
+            const supplierCompany = document.getElementById('supplierCompany').value;
+            const currentUser = auth.currentUser;
+
+            if (!currentUser) {
+                productMessage.textContent = 'Please log in to submit a product.';
+                productMessage.className = 'error-message';
+                return;
+            }
+
+            if (!productName || !productDescription || !supplierCompany) {
+                productMessage.textContent = 'All product fields are required.';
+                productMessage.className = 'error-message';
+                return;
+            }
+
+            try {
+                await db.collection('products').add({
+                    productName: productName,
+                    description: productDescription,
+                    supplierCompany: supplierCompany,
+                    submittedBy: currentUser.email,
+                    supplierId: currentUser.uid, // CRUCIAL for filtering with security rules
+                    status: 'Submitted', // Initial status
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    communications: [] // To store simple communication messages
+                });
+                productMessage.textContent = 'Product submitted successfully!';
+                productMessage.className = 'success-message';
+                // Clear form
+                document.getElementById('productName').value = '';
+                document.getElementById('productDescription').value = '';
+                document.getElementById('supplierCompany').value = '';
+                // Reload products
+                loadProducts();
+            } catch (error) {
+                productMessage.textContent = `Error submitting product: ${error.message}`;
+                productMessage.className = 'error-message';
+            }
+        });
+
+        // Load Products Logic
+        async function loadProducts() {
+            productsList.innerHTML = '<p>Loading products...</p>';
+            const currentUser = auth.currentUser;
+            if (!currentUser) return; // Should not happen if app-section is visible
+
+            try {
+                // The Firestore security rules will automatically filter products
+                // so suppliers only see their own, and admins see all.
+                // The client-side query just asks for all, and rules enforce the visibility.
+                const snapshot = await db.collection('products').orderBy('createdAt', 'desc').get();
+
+                if (snapshot.empty) {
+                    productsList.innerHTML = '<p>No products submitted yet.</p>';
+                    return;
+                }
+
+                let productsHtml = '';
+                snapshot.forEach(doc => {
+                    const product = doc.data();
+                    const productId = doc.id;
+                    const statusClass = `status-${product.status.replace(/\s/g, '')}`; // For CSS styling
+
+                    let adminActions = '';
+                    let communicationInput = '';
+                    let communicationsDisplay = '';
+
+                    // Client-side check for admin (for UI display purposes only - security is still in rules)
+                    // In a real app, use Firebase Custom Claims for robust role management.
+                    const isAdminUser = currentUser.email === 'admin@example.com';
+
+                    if (isAdminUser) {
+                        adminActions = `
+                            <button onclick="updateProductStatus('${productId}', 'Approved')">Approve</button>
+                            <button onclick="updateProductStatus('${productId}', 'Rejected')">Reject</button>
+                            <button onclick="updateProductStatus('${productId}', 'Needs More Info')">Needs Info</button>
+                        `;
+                    }
+                    
+                    // Communication section
+                    if (product.communications && product.communications.length > 0) {
+                        communicationsDisplay = `
+                            <div style="margin-top: 10px; border-top: 1px dotted #ccc; padding-top: 5px;">
+                                <strong>Communications:</strong>
+                                ${product.communications.map(comm => `<p style="margin: 3px 0; font-size: 0.8em;"><em>${new Date(comm.timestamp.toDate()).toLocaleString()}</em> - <strong>${comm.sender}:</strong> ${comm.message}</p>`).join('')}
+                            </div>
+                        `;
+                    }
+
+                    communicationInput = `
+                        <div style="margin-top: 10px;">
+                            <input type="text" id="comm-${productId}" placeholder="Add comment..." style="width: calc(100% - 120px); margin-bottom: 5px;">
+                            <button onclick="addCommunication('${productId}', document.getElementById('comm-${productId}').value)">Send</button>
+                        </div>
+                    `;
+
+
+                    productsHtml += `
+                        <div class="product-item">
+                            <h3>${product.productName}</h3>
+                            <p><strong>Description:</strong> ${product.description}</p>
+                            <p><strong>Company:</strong> ${product.supplierCompany}</p>
+                            <p><strong>Submitted By:</strong> ${product.submittedBy}</p>
+                            <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${product.status}</span></p>
+                            <p><strong>Submitted On:</strong> ${product.createdAt ? new Date(product.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
+                            ${adminActions}
+                            ${communicationsDisplay}
+                            ${communicationInput}
+                        </div>
+                    `;
+                });
+                productsList.innerHTML = productsHtml;
+            } catch (error) {
+                productsList.innerHTML = `<p class="error-message">Error loading products: ${error.message}</p>`;
+            }
+        }
+
+        // Admin action to update product status (for demo purposes - security is in rules)
+        async function updateProductStatus(productId, newStatus) {
+            clearMessages();
+            const currentUser = auth.currentUser;
+            // Client-side check, but the security rules are the ultimate enforcer
+            if (!currentUser || currentUser.email !== 'admin@example.com') {
+                alert('You are not authorized to perform this action.');
+                return;
+            }
+            try {
+                await db.collection('products').doc(productId).update({
+                    status: newStatus,
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                productMessage.textContent = `Product ${productId} status updated to ${newStatus}`;
+                productMessage.className = 'success-message';
+                loadProducts(); // Reload to reflect changes
+            } catch (error) {
+                productMessage.textContent = `Error updating status: ${error.message}`;
+                productMessage.className = 'error-message';
+            }
+        }
+
+        // Add communication to a product
+        async function addCommunication(productId, message) {
+            clearMessages();
+            const currentUser = auth.currentUser;
+            if (!currentUser || !message.trim()) {
+                alert('Please log in and enter a message.');
+                return;
+            }
+
+            try {
+                const productRef = db.collection('products').doc(productId);
+                await productRef.update({
+                    communications: firebase.firestore.FieldValue.arrayUnion({
+                        sender: currentUser.email,
+                        message: message.trim(),
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    }),
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                productMessage.textContent = 'Communication added successfully!';
+                productMessage.className = 'success-message';
+                document.getElementById(`comm-${productId}`).value = ''; // Clear input field
+                loadProducts(); // Reload to show new communication
+            } catch (error) {
+                productMessage.textContent = `Error adding communication: ${error.message}`;
+                productMessage.className = 'error-message';
+            }
+        }
+        
+        // Expose functions to the global scope for onclick events in dynamically generated HTML
+        window.updateProductStatus = updateProductStatus;
+        window.addCommunication = addCommunication;
+
+    </script>
+</body>
+</html>
