@@ -115,8 +115,6 @@
                 await db.collection('users').doc(userCredential.user.uid).set({
                     email: userCredential.user.email,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    // You could add a 'companyId' here if you manage companies separately,
-                    // but for this simple version, supplierId in products links directly to user.uid
                 });
                 authMessage.textContent = 'Registration successful! You are now logged in.';
                 authMessage.className = 'success-message';
@@ -253,7 +251,7 @@
                         communicationsDisplay = `
                             <div style="margin-top: 10px; border-top: 1px dotted #ccc; padding-top: 5px;">
                                 <strong>Communications:</strong>
-                                ${product.communications.map(comm => `<p style="margin: 3px 0; font-size: 0.8em;"><em>${new Date(comm.timestamp.toDate()).toLocaleString()}</em> - <strong>${comm.sender}:</strong> ${comm.message}</p>`).join('')}
+                                ${product.communications.map(comm => `<p style="margin: 3px 0; font-size: 0.8em;"><em>${comm.timestamp ? new Date(comm.timestamp.toDate()).toLocaleString() : 'N/A'}</em> - <strong>${comm.sender}:</strong> ${comm.message}</p>`).join('')}
                             </div>
                         `;
                     }
