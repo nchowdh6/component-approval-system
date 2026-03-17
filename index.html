@@ -112,6 +112,9 @@
             return user && ADMIN_EMAILS.includes(user.email);
         }
 
+        // Valid product statuses for CSS class generation
+        const VALID_STATUSES = ['Submitted', 'Approved', 'Rejected', 'Needs More Info'];
+
         // UI Elements
         const authSection = document.getElementById('auth-section');
         const appSection = document.getElementById('app-section');
@@ -250,7 +253,9 @@
                 snapshot.forEach(doc => {
                     const product = doc.data();
                     const productId = doc.id;
-                    const statusClass = `status-${product.status.replace(/\s/g, '')}`; // For CSS styling
+                    const statusClass = VALID_STATUSES.includes(product.status)
+                        ? `status-${product.status.replace(/\s/g, '')}`
+                        : ''; // For CSS styling
 
                     let adminActions = '';
                     let communicationInput = '';
@@ -262,9 +267,9 @@
 
                     if (isAdminUser) {
                         adminActions = `
-                            <button onclick="updateProductStatus('${escapeHtml(productId)}', 'Approved')">Approve</button>
-                            <button onclick="updateProductStatus('${escapeHtml(productId)}', 'Rejected')">Reject</button>
-                            <button onclick="updateProductStatus('${escapeHtml(productId)}', 'Needs More Info')">Needs Info</button>
+                            <button onclick="updateProductStatus('${productId}', 'Approved')">Approve</button>
+                            <button onclick="updateProductStatus('${productId}', 'Rejected')">Reject</button>
+                            <button onclick="updateProductStatus('${productId}', 'Needs More Info')">Needs Info</button>
                         `;
                     }
                     
@@ -280,9 +285,9 @@
 
                     communicationInput = `
                         <div style="margin-top: 10px;">
-                            <label for="comm-${escapeHtml(productId)}">Add comment</label>
-                            <input type="text" id="comm-${escapeHtml(productId)}" placeholder="Add comment..." style="width: calc(100% - 120px); margin-bottom: 5px;">
-                            <button onclick="addCommunication('${escapeHtml(productId)}', document.getElementById('comm-${escapeHtml(productId)}').value)">Send</button>
+                            <label for="comm-${productId}">Add comment</label>
+                            <input type="text" id="comm-${productId}" placeholder="Add comment..." style="width: calc(100% - 120px); margin-bottom: 5px;">
+                            <button onclick="addCommunication('${productId}', document.getElementById('comm-${productId}').value)">Send</button>
                         </div>
                     `;
 
