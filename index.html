@@ -35,6 +35,7 @@
         .status-NeedsMoreInfo { background-color: #2196F3; } /* Blue */
         .error-message { color: red; }
         .success-message { color: green; }
+        label { display: block; font-weight: bold; margin-bottom: 4px; margin-top: 8px; font-size: 0.9em; }
     </style>
 </head>
 <body>
@@ -43,25 +44,30 @@
 
         <div id="auth-section" class="auth-section">
             <h2>Login / Register</h2>
-            <input type="email" id="email" placeholder="Email">
-            <input type="password" id="password" placeholder="Password">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="Email" aria-required="true">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Password" aria-required="true">
             <button id="loginBtn">Login</button>
             <button id="registerBtn">Register</button>
-            <p id="auth-message" class="error-message"></p>
+            <p id="auth-message" class="error-message" role="alert"></p>
         </div>
 
         <div id="app-section" class="app-section hidden">
             <p>Welcome, <strong id="user-email"></strong>! <button id="logoutBtn">Logout</button></p>
 
             <h2>Submit New Product Request</h2>
-            <input type="text" id="productName" placeholder="Product Name">
-            <textarea id="productDescription" placeholder="Product Description" rows="3"></textarea>
-            <input type="text" id="supplierCompany" placeholder="Your Company Name">
+            <label for="productName">Product Name</label>
+            <input type="text" id="productName" placeholder="Product Name" aria-required="true">
+            <label for="productDescription">Product Description</label>
+            <textarea id="productDescription" placeholder="Product Description" rows="3" aria-required="true"></textarea>
+            <label for="supplierCompany">Company Name</label>
+            <input type="text" id="supplierCompany" placeholder="Your Company Name" aria-required="true">
             <button id="submitProductBtn">Submit Product</button>
-            <p id="product-message" class="success-message"></p>
+            <p id="product-message" class="success-message" role="status"></p>
 
             <h2>Product Requests</h2>
-            <div id="products-list">
+            <div id="products-list" aria-live="polite">
                 <!-- Products will be loaded here -->
                 <p>Loading products...</p>
             </div>
@@ -84,11 +90,27 @@
             appId: "YOUR_APP_ID"
         };
 
+        // Configurable admin email addresses - add your admin emails here
+        const ADMIN_EMAILS = ['admin@example.com'];
+
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
 
         const auth = firebase.auth();
         const db = firebase.firestore();
+
+        // Utility: Escape HTML to prevent XSS attacks
+        function escapeHtml(str) {
+            if (typeof str !== 'string') return '';
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        // Utility: Check if a user is an admin
+        function isAdmin(user) {
+            return user && ADMIN_EMAILS.includes(user.email);
+        }
 
         // UI Elements
         const authSection = document.getElementById('auth-section');
@@ -236,13 +258,13 @@
 
                     // Client-side check for admin (for UI display purposes only - security is still in rules)
                     // In a real app, use Firebase Custom Claims for robust role management.
-                    const isAdminUser = currentUser.email === 'admin@example.com';
+                    const isAdminUser = isAdmin(currentUser);
 
                     if (isAdminUser) {
                         adminActions = `
-                            <button onclick="updateProductStatus('${productId}', 'Approved')">Approve</button>
-                            <button onclick="updateProductStatus('${productId}', 'Rejected')">Reject</button>
-                            <button onclick="updateProductStatus('${productId}', 'Needs More Info')">Needs Info</button>
+                            <button onclick="updateProductStatus('${escapeHtml(productId)}', 'Approved')">Approve</button>
+                            <button onclick="updateProductStatus('${escapeHtml(productId)}', 'Rejected')">Reject</button>
+                            <button onclick="updateProductStatus('${escapeHtml(productId)}', 'Needs More Info')">Needs Info</button>
                         `;
                     }
                     
@@ -251,26 +273,27 @@
                         communicationsDisplay = `
                             <div style="margin-top: 10px; border-top: 1px dotted #ccc; padding-top: 5px;">
                                 <strong>Communications:</strong>
-                                ${product.communications.map(comm => `<p style="margin: 3px 0; font-size: 0.8em;"><em>${comm.timestamp ? new Date(comm.timestamp.toDate()).toLocaleString() : 'N/A'}</em> - <strong>${comm.sender}:</strong> ${comm.message}</p>`).join('')}
+                                ${product.communications.map(comm => `<p style="margin: 3px 0; font-size: 0.8em;"><em>${comm.timestamp ? new Date(comm.timestamp.toDate()).toLocaleString() : 'N/A'}</em> - <strong>${escapeHtml(comm.sender)}:</strong> ${escapeHtml(comm.message)}</p>`).join('')}
                             </div>
                         `;
                     }
 
                     communicationInput = `
                         <div style="margin-top: 10px;">
-                            <input type="text" id="comm-${productId}" placeholder="Add comment..." style="width: calc(100% - 120px); margin-bottom: 5px;">
-                            <button onclick="addCommunication('${productId}', document.getElementById('comm-${productId}').value)">Send</button>
+                            <label for="comm-${escapeHtml(productId)}">Add comment</label>
+                            <input type="text" id="comm-${escapeHtml(productId)}" placeholder="Add comment..." style="width: calc(100% - 120px); margin-bottom: 5px;">
+                            <button onclick="addCommunication('${escapeHtml(productId)}', document.getElementById('comm-${escapeHtml(productId)}').value)">Send</button>
                         </div>
                     `;
 
 
                     productsHtml += `
                         <div class="product-item">
-                            <h3>${product.productName}</h3>
-                            <p><strong>Description:</strong> ${product.description}</p>
-                            <p><strong>Company:</strong> ${product.supplierCompany}</p>
-                            <p><strong>Submitted By:</strong> ${product.submittedBy}</p>
-                            <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${product.status}</span></p>
+                            <h3>${escapeHtml(product.productName)}</h3>
+                            <p><strong>Description:</strong> ${escapeHtml(product.description)}</p>
+                            <p><strong>Company:</strong> ${escapeHtml(product.supplierCompany)}</p>
+                            <p><strong>Submitted By:</strong> ${escapeHtml(product.submittedBy)}</p>
+                            <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${escapeHtml(product.status)}</span></p>
                             <p><strong>Submitted On:</strong> ${product.createdAt ? new Date(product.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
                             ${adminActions}
                             ${communicationsDisplay}
@@ -289,7 +312,7 @@
             clearMessages();
             const currentUser = auth.currentUser;
             // Client-side check, but the security rules are the ultimate enforcer
-            if (!currentUser || currentUser.email !== 'admin@example.com') {
+            if (!currentUser || !isAdmin(currentUser)) {
                 alert('You are not authorized to perform this action.');
                 return;
             }
